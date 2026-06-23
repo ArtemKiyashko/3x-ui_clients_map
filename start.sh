@@ -8,12 +8,6 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-if [ ! -f ./data/GeoLite2-City.mmdb ]; then
-    echo "GeoLite2-City.mmdb not found in ./data"
-    echo "Place the MaxMind database at ./data/GeoLite2-City.mmdb"
-    exit 1
-fi
-
 if ! command -v docker > /dev/null 2>&1; then
     echo "Docker is not installed"
     exit 1

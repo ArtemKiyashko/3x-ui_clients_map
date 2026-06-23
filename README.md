@@ -6,7 +6,7 @@
 
 - берет клиентов из `/panel/api/server/clientIps`
 - распаковывает все IP из ответа, включая несколько IP на одного клиента
-- геолокирует их через локальную базу MaxMind `GeoLite2-City.mmdb`
+- геолокирует их через `ip-api.com` batch endpoint с локальным кэшем в памяти
 - отдает карту и JSON API на порту `3000`
 
 ## Запуск
@@ -23,18 +23,16 @@ cp .env.example .env
 X3UI_URL=http://host.docker.internal:8080
 X3UI_PANEL_PATH=/panel
 X3UI_API_KEY=your-api-key-here
-GEOIP_DB_PATH=/app/data/GeoLite2-City.mmdb
+IP_API_BATCH_URL=http://ip-api.com/batch
 ```
 
-3. Положи файл базы в `./data/GeoLite2-City.mmdb`
-
-4. Подними сервис:
+3. Подними сервис:
 
 ```bash
 docker compose up --build -d
 ```
 
-5. Открой:
+4. Открой:
 
 ```text
 http://localhost:3000
@@ -45,7 +43,6 @@ http://localhost:3000
 - Docker
 - Docker Compose
 - `.env`
-- `data/GeoLite2-City.mmdb`
 
 Никакой локальной установки Node.js зависимостей не требуется.
 
@@ -98,7 +95,7 @@ http://localhost:3000
 ## Замечания
 
 - карта использует внешние map tiles в браузере
-- геолокация работает локально через `.mmdb`, без внешнего GeoIP API
+- геолокация идет через `ip-api.com/batch`, новые IP кэшируются в памяти
 - если у клиента несколько устройств или несколько IP, на карте будет несколько точек
 
 ## Полезные команды

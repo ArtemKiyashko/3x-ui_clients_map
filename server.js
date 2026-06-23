@@ -1,7 +1,6 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
-const maxmind = require('maxmind');
 const path = require('path');
 const cors = require('cors');
 
@@ -12,57 +11,116 @@ const PORT = process.env.PORT || 3000;
 const X3UI_BASE_URL = process.env.X3UI_URL || 'http://localhost:8080';
 const X3UI_PANEL_PATH = process.env.X3UI_PANEL_PATH || '/panel';
 const X3UI_API_KEY = process.env.X3UI_API_KEY || 'your-api-key';
-const GEOIP_DB_PATH = process.env.GEOIP_DB_PATH || path.join(__dirname, 'data', 'GeoLite2-City.mmdb');
+const IP_API_BATCH_URL = process.env.IP_API_BATCH_URL || 'http://ip-api.com/batch';
 
 const GEO_CACHE = new Map();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 часа
-let geoReaderPromise;
+const IP_API_TIMEOUT = 7000;
+const IP_API_BATCH_SIZE = 100;
 
 // Middleware
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 
-function getGeoReader() {
-  if (!geoReaderPromise) {
-    geoReaderPromise = maxmind.open(GEOIP_DB_PATH);
+function getCachedGeo(ip) {
+  const cached = GEO_CACHE.get(ip);
+
+  if (!cached) {
+    return null;
   }
 
-  return geoReaderPromise;
+  if (Date.now() - cached.timestamp >= CACHE_TTL) {
+    GEO_CACHE.delete(ip);
+    return null;
+  }
+
+  return cached.data;
+}
+
+/**
+ * Обновить кэш геолокации
+ */
+function setGeoCache(ip, data) {
+  GEO_CACHE.set(ip, {
+    data,
+    timestamp: Date.now()
+  });
+}
+
+function chunkArray(items, chunkSize) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+/**
+ * Batch-геолокация через ip-api.com
+ */
+async function fetchGeoBatch(ips) {
+  if (!ips.length) {
+    return;
+  }
+
+  const ipChunks = chunkArray(ips, IP_API_BATCH_SIZE);
+
+  for (const chunk of ipChunks) {
+    try {
+      const response = await axios.post(IP_API_BATCH_URL, chunk, {
+        params: {
+          fields: 'status,message,query,country,countryCode,city,lat,lon,as,mobile'
+        },
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        timeout: IP_API_TIMEOUT
+      });
+
+      if (!Array.isArray(response.data)) {
+        continue;
+      }
+
+      for (const item of response.data) {
+        const ip = item.query;
+        if (!ip) {
+          continue;
+        }
+
+        if (item.status === 'success') {
+          setGeoCache(ip, {
+            country: item.country || null,
+            countryCode: item.countryCode || null,
+            city: item.city || null,
+            lat: item.lat,
+            lon: item.lon,
+            asn: item.as || null,
+            isMobile: item.mobile || false
+          });
+          continue;
+        }
+
+        setGeoCache(ip, null);
+      }
+    } catch (error) {
+      console.error(`Geo batch lookup failed for chunk of ${chunk.length} IPs:`, error.message);
+    }
+  }
 }
 
 /**
  * Кэшированная геолокация по IP
  */
 async function getGeoLocation(ip) {
-  const cached = GEO_CACHE.get(ip);
-  
-  // Если в кэше и не истек TTL
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data;
+  const cached = getCachedGeo(ip);
+
+  if (cached !== null) {
+    return cached;
   }
 
   try {
-    const reader = await getGeoReader();
-    const result = reader.get(ip);
-
-    if (result?.location?.latitude != null && result?.location?.longitude != null) {
-      const data = {
-        country: result.country?.names?.en || null,
-        countryCode: result.country?.iso_code || null,
-        city: result.city?.names?.en || null,
-        lat: result.location.latitude,
-        lon: result.location.longitude,
-        asn: null,
-        isMobile: false
-      };
-
-      GEO_CACHE.set(ip, {
-        data,
-        timestamp: Date.now()
-      });
-
-      return data;
-    }
+    await fetchGeoBatch([ip]);
+    return getCachedGeo(ip);
   } catch (error) {
     console.error(`Geo lookup failed for ${ip}:`, error.message);
   }
@@ -110,6 +168,14 @@ async function getActiveConnections() {
     }
 
     console.log(`Found ${allIps.length} total IP addresses from ${clientsData.length} clients`);
+
+    const uniqueIps = [...new Set(allIps.map((item) => item.ip))];
+    const ipsToResolve = uniqueIps.filter((ip) => getCachedGeo(ip) === null);
+
+    if (ipsToResolve.length > 0) {
+      console.log(`Resolving ${ipsToResolve.length} new IPs via ip-api batch`);
+      await fetchGeoBatch(ipsToResolve);
+    }
 
     const connectionsWithGeo = await Promise.all(
       allIps.map(async (item) => {
@@ -164,6 +230,6 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Map service running on http://localhost:${PORT}`);
   console.log(`3x-ui API: ${X3UI_BASE_URL}${X3UI_PANEL_PATH}`);
-  console.log(`GeoIP DB: ${GEOIP_DB_PATH}`);
+  console.log(`Geo API: ${IP_API_BATCH_URL}`);
   console.log(`API endpoint: http://localhost:${PORT}/api/connections`);
 });

@@ -22,8 +22,6 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY server.js .
 COPY public ./public
 
-RUN mkdir -p /app/data
-
 # Создаём non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
 RUN chown -R nodejs:nodejs /app
