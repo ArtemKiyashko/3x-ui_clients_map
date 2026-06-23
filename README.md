@@ -80,28 +80,8 @@ http://localhost:3117
 
 Проверка состояния контейнера.
 
-## Встраивание в Homepage
-
-```html
-<iframe
-  src="http://localhost:3117"
-  width="100%"
-  height="600px"
-  frameborder="0"
-  style="border: none; border-radius: 8px;"
-></iframe>
-```
-
 ## Замечания
 
 - карта использует внешние map tiles в браузере
 - геолокация идет через `ip-api.com/batch`, новые IP кэшируются в памяти
 - если у клиента несколько устройств или несколько IP, на карте будет несколько точек
-
-## Полезные команды
-
-```bash
-docker compose logs -f map-service
-docker compose restart map-service
-docker compose down
-```
