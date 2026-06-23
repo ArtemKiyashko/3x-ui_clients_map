@@ -139,7 +139,7 @@ async function getActiveConnections() {
 
     const response = await axios.get(url, {
       headers: {
-        'Authorization': X3UI_API_KEY
+        'Authorization': `Bearer ${X3UI_API_KEY}`
       },
       timeout: 10000
     });
