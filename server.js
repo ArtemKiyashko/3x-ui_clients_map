@@ -69,12 +69,12 @@ async function getGeoLocation(ip) {
 }
 
 /**
- * Получить список активных подключений из 3x-ui
+ * Получить список подключений из 3x-ui
  */
 async function getActiveConnections() {
   try {
     const url = `${X3UI_BASE_URL}${X3UI_PANEL_PATH}/api/server/clientIps`;
-    
+
     console.log(`[${new Date().toISOString()}] Fetching connections from ${url}`);
 
     const response = await axios.get(url, {
@@ -84,22 +84,42 @@ async function getActiveConnections() {
       timeout: 10000
     });
 
-    const ips = response.data || [];
-    console.log(`Found ${ips.length} active connections`);
+    // Ответ имеет формат: { success: true, msg: "", obj: [...] }
+    // где obj это массив клиентов с их IP адресами
+    const clientsData = response.data?.obj || [];
 
-    // Получаем геоданные для каждого IP параллельно
+    const allIps = [];
+    for (const client of clientsData) {
+      if (!Array.isArray(client.ips)) {
+        continue;
+      }
+
+      for (const ipEntry of client.ips) {
+        if (!ipEntry?.ip) {
+          continue;
+        }
+
+        allIps.push({
+          ip: ipEntry.ip,
+          clientName: client.clientEmail,
+          timestamp: ipEntry.timestamp
+        });
+      }
+    }
+
+    console.log(`Found ${allIps.length} total IP addresses from ${clientsData.length} clients`);
+
     const connectionsWithGeo = await Promise.all(
-      ips.map(async (ip) => {
-        const geo = await getGeoLocation(ip);
+      allIps.map(async (item) => {
+        const geo = await getGeoLocation(item.ip);
         return {
-          ip,
+          ...item,
           ...geo
         };
       })
     );
 
-    // Фильтруем те, для которых не удалось получить геоданные
-    return connectionsWithGeo.filter(c => c.country);
+    return connectionsWithGeo.filter((connection) => connection.country);
   } catch (error) {
     console.error('Failed to get active connections:', error.message);
     return [];
@@ -115,9 +135,8 @@ app.get('/api/connections', async (req, res) => {
     online: connections.length,
     timestamp: new Date().toISOString(),
     connections,
-    // Статистика по странам
-    countries: connections.reduce((acc, c) => {
-      acc[c.countryCode] = (acc[c.countryCode] || 0) + 1;
+    countries: connections.reduce((acc, connection) => {
+      acc[connection.countryCode] = (acc[connection.countryCode] || 0) + 1;
       return acc;
     }, {})
   });
@@ -141,7 +160,7 @@ app.get('/health', (req, res) => {
  * Стартуем сервер
  */
 app.listen(PORT, () => {
-  console.log(`🌍 Map service running on http://localhost:${PORT}`);
+  console.log(`Map service running on http://localhost:${PORT}`);
   console.log(`3x-ui API: ${X3UI_BASE_URL}${X3UI_PANEL_PATH}`);
   console.log(`API endpoint: http://localhost:${PORT}/api/connections`);
 });
