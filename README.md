@@ -1,188 +1,110 @@
-# 3x-ui Live Connections Map 🌍
+# 3x-ui Live Connections Map
 
-Real-time interactive map showing active 3x-ui client connections with geolocation using MapLibre GL JS.
+Интерактивная страница с картой подключений 3x-ui, которую можно встроить в Homepage через iframe. Проект рассчитан на один сценарий запуска: Docker Compose.
 
-## Features
+## Что делает
 
-✅ **Real-time Map** - Live visualization of active connections  
-✅ **Clustering** - Supercluster handles hundreds of markers  
-✅ **Geolocation** - IP-based location detection with caching  
-✅ **Statistics** - Top countries, online count, IPv4/IPv6 split  
-✅ **Interactive** - Click markers for connection details  
-✅ **Docker Ready** - Single command deployment with docker-compose  
-✅ **Lightweight** - MapLibre instead of Leaflet for better performance  
+- берет клиентов из `/panel/api/server/clientIps`
+- распаковывает все IP из ответа, включая несколько IP на одного клиента
+- геолокирует их через локальную базу MaxMind `GeoLite2-City.mmdb`
+- отдает карту и JSON API на порту `3000`
 
-## Quick Start
+## Запуск
 
-### 1. Clone & Setup
-
-```bash
-cd /Users/artem/repos/3x-ui_clients_map
-npm install
-```
-
-### 2. Configure
+1. Создай `.env` из шаблона:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env`:
+2. Заполни `.env`:
+
 ```env
-X3UI_URL=http://localhost:8080        # Your 3x-ui address
-X3UI_PANEL_PATH=/panel                # Usually /panel
-X3UI_API_KEY=your-api-key-here       # Get from 3x-ui panel
+X3UI_URL=http://host.docker.internal:8080
+X3UI_PANEL_PATH=/panel
+X3UI_API_KEY=your-api-key-here
+GEOIP_DB_PATH=/app/data/GeoLite2-City.mmdb
 ```
 
-### 3. Run with Docker Compose
+3. Положи файл базы в `./data/GeoLite2-City.mmdb`
+
+4. Подними сервис:
 
 ```bash
-docker-compose up -d
+docker compose up --build -d
 ```
 
-Access the map at: **http://localhost:3000**
+5. Открой:
 
-## Architecture
-
-```
-Homepage (iframe)
-    ↓
-Map Service (Node.js + Express)
-    ├─ REST API: /api/connections
-    ├─ Static: public/index.html
-    └─ Updates every 10 seconds
-
-3x-ui API
-    ↓
-Map Service
-    ├─ Fetch: /panel/api/server/clientIps
-    ├─ Geolocation: ip-api.com (cached 24h)
-    └─ Return: JSON with lat/lon/country/city
+```text
+http://localhost:3000
 ```
 
-## API Endpoints
+## Что нужно на хосте
 
-### GET /api/connections
+- Docker
+- Docker Compose
+- `.env`
+- `data/GeoLite2-City.mmdb`
 
-Returns current active connections with geolocation:
+Никакой локальной установки Node.js зависимостей не требуется.
+
+## API
+
+### `GET /api/connections`
+
+Пример ответа:
 
 ```json
 {
-  "online": 47,
-  "timestamp": "2024-06-23T10:30:00Z",
+  "online": 4,
+  "timestamp": "2026-06-23T10:30:00.000Z",
   "connections": [
     {
-      "ip": "91.123.45.1",
+      "ip": "79.173.95.155",
+      "clientName": "svet_router",
+      "timestamp": 1782239068,
       "country": "Russia",
       "countryCode": "RU",
       "city": "Moscow",
-      "lat": 55.7558,
-      "lon": 37.6173,
-      "asn": "AS8402 OJSC Rostelecom"
+      "lat": 55.7522,
+      "lon": 37.6156,
+      "asn": null,
+      "isMobile": false
     }
   ],
   "countries": {
-    "RU": 31,
-    "PL": 11,
-    "DE": 6
+    "RU": 4
   }
 }
 ```
 
-### GET /health
+### `GET /health`
 
-Health check endpoint.
+Проверка состояния контейнера.
 
-## Docker Compose Configuration
-
-```yaml
-services:
-  map-service:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      X3UI_URL: http://host.docker.internal:8080  # For local 3x-ui
-      X3UI_API_KEY: your-key
-    restart: unless-stopped
-```
-
-### Connecting to 3x-ui
-
-**Local (macOS):** Use `host.docker.internal:8080`  
-**Remote:** Use full URL `http://192.168.1.100:8080`  
-**Docker Network:** Create network and connect both services
-
-## Local Development
-
-```bash
-npm install
-npm start        # Production
-npm run dev      # With nodemon (requires nodemon)
-```
-
-## Embedding in Homepage
-
-Add to Homepage as iframe:
+## Встраивание в Homepage
 
 ```html
-<iframe 
+<iframe
   src="http://localhost:3000"
   width="100%"
   height="600px"
   frameborder="0"
-  style="border-radius: 8px;"
+  style="border: none; border-radius: 8px;"
 ></iframe>
 ```
 
-## Performance Notes
+## Замечания
 
-- **Update interval:** 10 seconds (configurable in `public/index.html`)
-- **Geolocation cache:** 24 hours per IP
-- **Rate limit:** ip-api.com allows 45 requests/minute
-- **Browser:** Works in modern browsers (Chrome, Firefox, Safari, Edge)
+- карта использует внешние map tiles в браузере
+- геолокация работает локально через `.mmdb`, без внешнего GeoIP API
+- если у клиента несколько устройств или несколько IP, на карте будет несколько точек
 
-## Troubleshooting
+## Полезные команды
 
-### No connections showing?
-
-1. Check 3x-ui API key in `.env`
-2. Verify 3x-ui is running and accessible
-3. Check browser console for errors (F12)
-4. Verify firewall allows port 3000
-
-### Map not loading?
-
-- Check if port 3000 is available
-- Look at container logs: `docker-compose logs map-service`
-- Ensure internet connection (for map tiles and IP-API)
-
-### Rate limited?
-
-- Switch from ip-api to local GeoIP database (MaxMind GeoLite2)
-- Increase cache TTL in `server.js`
-
-## Future Improvements
-
-- [ ] MaxMind GeoLite2 for local geolocation (no rate limits)
-- [ ] Heatmap mode for better visualization
-- [ ] ASN-based coloring
-- [ ] RTT/latency heatmap
-- [ ] Connection history graph
-- [ ] WebSocket for real-time updates
-- [ ] Dark/light theme toggle
-
-## Tech Stack
-
-- **Backend:** Node.js + Express
-- **Frontend:** MapLibre GL JS + Supercluster
-- **Geolocation:** ip-api.com (can be replaced with MaxMind)
-- **Containerization:** Docker + Docker Compose
-
-## License
-
-MIT
-
-## Author
-
-Created for 3x-ui live connection monitoring
+```bash
+docker compose logs -f map-service
+docker compose restart map-service
+docker compose down
+```

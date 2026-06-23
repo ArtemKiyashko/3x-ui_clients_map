@@ -1,37 +1,29 @@
 #!/bin/bash
 
-# 3x-ui Live Map Service - Start Script
+echo "Starting 3x-ui Live Connections Map..."
 
-echo "🌍 Starting 3x-ui Live Connections Map..."
-
-# Проверяем .env
 if [ ! -f .env ]; then
-    echo "❌ .env not found!"
-    echo "Creating from .env.example..."
-    cp .env.example .env
-    echo "⚠️  Please edit .env with your 3x-ui configuration"
-    echo "Then run again: ./start.sh"
+    echo ".env not found"
+    echo "Create it from .env.example and set your 3x-ui values"
     exit 1
 fi
 
-# Проверяем Docker
-if ! command -v docker &> /dev/null; then
-    echo "❌ Docker is not installed"
+if [ ! -f ./data/GeoLite2-City.mmdb ]; then
+    echo "GeoLite2-City.mmdb not found in ./data"
+    echo "Place the MaxMind database at ./data/GeoLite2-City.mmdb"
     exit 1
 fi
 
-# Запускаем docker-compose
-echo "📦 Building and starting containers..."
-docker-compose up -d
+if ! command -v docker > /dev/null 2>&1; then
+    echo "Docker is not installed"
+    exit 1
+fi
 
-echo "✅ Service started!"
-echo ""
-echo "🌐 Map available at: http://localhost:3000"
-echo "📊 API endpoint: http://localhost:3000/api/connections"
-echo "❤️  Health check: http://localhost:3000/health"
-echo ""
-echo "View logs:"
-echo "  docker-compose logs -f map-service"
-echo ""
-echo "Stop service:"
-echo "  docker-compose down"
+echo "Building and starting container..."
+docker compose up --build -d
+
+echo "Map available at: http://localhost:3000"
+echo "API endpoint: http://localhost:3000/api/connections"
+echo "Health check: http://localhost:3000/health"
+echo "Logs: docker compose logs -f map-service"
+echo "Stop: docker compose down"

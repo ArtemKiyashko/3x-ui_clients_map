@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
+const maxmind = require('maxmind');
 const path = require('path');
 const cors = require('cors');
 
@@ -11,15 +12,23 @@ const PORT = process.env.PORT || 3000;
 const X3UI_BASE_URL = process.env.X3UI_URL || 'http://localhost:8080';
 const X3UI_PANEL_PATH = process.env.X3UI_PANEL_PATH || '/panel';
 const X3UI_API_KEY = process.env.X3UI_API_KEY || 'your-api-key';
+const GEOIP_DB_PATH = process.env.GEOIP_DB_PATH || path.join(__dirname, 'data', 'GeoLite2-City.mmdb');
 
-// Для простоты используем MaxMind или ip-api (можно заменить позже)
-// Пока используем ip-api.com с кэшем
 const GEO_CACHE = new Map();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 часа
+let geoReaderPromise;
 
 // Middleware
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
+
+function getGeoReader() {
+  if (!geoReaderPromise) {
+    geoReaderPromise = maxmind.open(GEOIP_DB_PATH);
+  }
+
+  return geoReaderPromise;
+}
 
 /**
  * Кэшированная геолокация по IP
@@ -33,27 +42,20 @@ async function getGeoLocation(ip) {
   }
 
   try {
-    // Используем ip-api.com (бесплатно, 45 запросов/мин)
-    // Для production лучше использовать MaxMind GeoLite2
-    const response = await axios.get(`http://ip-api.com/json/${ip}`, {
-      params: {
-        fields: 'status,country,countryCode,city,lat,lon,as,mobile'
-      },
-      timeout: 5000
-    });
+    const reader = await getGeoReader();
+    const result = reader.get(ip);
 
-    if (response.data.status === 'success') {
+    if (result?.location?.latitude != null && result?.location?.longitude != null) {
       const data = {
-        country: response.data.country,
-        countryCode: response.data.countryCode,
-        city: response.data.city,
-        lat: response.data.lat,
-        lon: response.data.lon,
-        asn: response.data.as,
-        isMobile: response.data.mobile || false
+        country: result.country?.names?.en || null,
+        countryCode: result.country?.iso_code || null,
+        city: result.city?.names?.en || null,
+        lat: result.location.latitude,
+        lon: result.location.longitude,
+        asn: null,
+        isMobile: false
       };
 
-      // Кэшируем
       GEO_CACHE.set(ip, {
         data,
         timestamp: Date.now()
@@ -162,5 +164,6 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Map service running on http://localhost:${PORT}`);
   console.log(`3x-ui API: ${X3UI_BASE_URL}${X3UI_PANEL_PATH}`);
+  console.log(`GeoIP DB: ${GEOIP_DB_PATH}`);
   console.log(`API endpoint: http://localhost:${PORT}/api/connections`);
 });
