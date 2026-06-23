@@ -1,8 +1,6 @@
 services:
   map-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/artemkiyashko/3x-ui_clients_map:latest
     container_name: 3x-ui-map-service
     ports:
       - "${PORT:-3117}:${PORT:-3117}"
