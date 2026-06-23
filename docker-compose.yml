@@ -5,17 +5,17 @@ services:
       dockerfile: Dockerfile
     container_name: 3x-ui-map-service
     ports:
-      - "3000:3000"
+      - "${PORT:-3117}:${PORT:-3117}"
     environment:
       - X3UI_URL=${X3UI_URL:-http://host.docker.internal:8080}
       - X3UI_PANEL_PATH=${X3UI_PANEL_PATH:-/panel}
       - X3UI_API_KEY=${X3UI_API_KEY:-}
       - IP_API_BATCH_URL=${IP_API_BATCH_URL:-http://ip-api.com/batch}
-      - PORT=3000
+      - PORT=${PORT:-3117}
       - NODE_ENV=production
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "sh", "-c", "wget --quiet --tries=1 --spider http://localhost:${PORT:-3117}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
