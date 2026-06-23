@@ -7,7 +7,7 @@
 - берет клиентов из `/panel/api/server/clientIps`
 - распаковывает все IP из ответа, включая несколько IP на одного клиента
 - геолокирует их через `ip-api.com` batch endpoint с локальным кэшем в памяти
-- отдает карту и JSON API на порту `3000`
+- отдает карту и JSON API на порту из `PORT` (по умолчанию `3117`)
 
 ## Запуск
 
@@ -35,7 +35,7 @@ docker compose up --build -d
 4. Открой:
 
 ```text
-http://localhost:3000
+http://localhost:3117
 ```
 
 ## Что нужно на хосте
@@ -58,15 +58,15 @@ http://localhost:3000
   "timestamp": "2026-06-23T10:30:00.000Z",
   "connections": [
     {
-      "ip": "79.173.95.155",
-      "clientName": "svet_router",
+      "ip": "1.2.3.4",
+      "clientName": "user1",
       "timestamp": 1782239068,
       "country": "Russia",
       "countryCode": "RU",
       "city": "Moscow",
       "lat": 55.7522,
       "lon": 37.6156,
-      "asn": null,
+      "asn": "AS12345 ISP Name",
       "isMobile": false
     }
   ],
@@ -84,7 +84,7 @@ http://localhost:3000
 
 ```html
 <iframe
-  src="http://localhost:3000"
+  src="http://localhost:3117"
   width="100%"
   height="600px"
   frameborder="0"
