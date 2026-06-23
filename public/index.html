@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3x-ui Live Connections Map</title>
+    
+    <!-- MapLibre GL -->
+    <link href='https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css' rel='stylesheet' />
+    <script src='https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js'></script>
+    
+    <!-- Supercluster for clustering -->
+    <script src='https://unpkg.com/supercluster@8/dist/supercluster.min.js'></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0f0f0f;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .sidebar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            z-index: 10;
+            max-height: 80vh;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+        }
+
+        .stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 15px 20px;
+            z-index: 10;
+            min-width: 200px;
+            backdrop-filter: blur(10px);
+        }
+
+        .title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .online-count {
+            font-size: 32px;
+            font-weight: bold;
+            color: #4ade80;
+            margin: 0;
+            text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+        }
+
+        .online-label {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            margin: 5px 0 15px 0;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            color: #aaa;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 8px;
+        }
+
+        .country-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 13px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .country-name {
+            color: #ddd;
+        }
+
+        .country-count {
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .flag {
+            font-size: 14px;
+            margin-right: 8px;
+        }
+
+        .loading {
+            color: #888;
+            font-size: 12px;
+            text-align: center;
+            padding: 10px;
+        }
+
+        .error {
+            color: #f87171;
+            font-size: 12px;
+            padding: 10px;
+            background: rgba(248, 113, 113, 0.1);
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .update-time {
+            font-size: 11px;
+            color: #666;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Marker styles */
+        .marker {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .marker:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        .marker-cluster {
+            background: rgba(74, 222, 128, 0.8);
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .popup {
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 12px;
+        }
+
+        .popup-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .popup-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+        }
+
+        /* Scrollbar styling */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="sidebar">
+        <div class="title">🌍 Live Connections</div>
+        <div class="online-count" id="online-count">0</div>
+        <div class="online-label">Online Now</div>
+        
+        <div class="section-title">Top Countries</div>
+        <div id="countries-list" class="loading">Loading...</div>
+        
+        <div class="update-time">Last update: <span id="update-time">-</span></div>
+    </div>
+
+    <div class="stats">
+        <div style="font-size: 12px; color: #888; margin-bottom: 8px;">⚡ STATS</div>
+        <div id="stats-info">Loading...</div>
+    </div>
+
+    <script>
+        // Конфиг
+        const API_URL = '/api/connections';
+        const UPDATE_INTERVAL = 10000; // 10 сек
+        const COUNTRY_FLAGS = {
+            'RU': '🇷🇺', 'US': '🇺🇸', 'DE': '🇩🇪', 'PL': '🇵🇱', 'FR': '🇫🇷',
+            'GB': '🇬🇧', 'JP': '🇯🇵', 'CN': '🇨🇳', 'IN': '🇮🇳', 'BR': '🇧🇷',
+            'UA': '🇺🇦', 'NL': '🇳🇱', 'IT': '🇮🇹', 'ES': '🇪🇸', 'CA': '🇨🇦',
+            'SE': '🇸🇪', 'FI': '🇫🇮', 'TR': '🇹🇷', 'AU': '🇦🇺', 'MX': '🇲🇽'
+        };
+
+        let map;
+        let markers = [];
+        let cluster = new Supercluster({ radius: 80, maxZoom: 16 });
+        let currentConnections = [];
+
+        /**
+         * Инициализация MapLibre
+         */
+        function initMap() {
+            map = new maplibregl.Map({
+                container: 'map',
+                style: 'https://demotiles.maplibre.org/style.json',
+                center: [20, 45],
+                zoom: 2,
+                pitch: 0,
+                bearing: 0
+            });
+
+            map.on('load', () => {
+                console.log('✅ Map loaded');
+            });
+        }
+
+        /**
+         * Получить цвет по стране
+         */
+        function getCountryColor(countryCode) {
+            const colors = {
+                'RU': '#ef4444', 'US': '#3b82f6', 'DE': '#10b981', 'PL': '#f59e0b',
+                'FR': '#8b5cf6', 'GB': '#ec4899', 'JP': '#06b6d4', 'CN': '#f97316',
+                'UA': '#7c3aed', 'NL': '#14b8a6', 'IT': '#d97706', 'ES': '#6366f1'
+            };
+            return colors[countryCode] || '#6b7280';
+        }
+
+        /**
+         * Обновить маркеры на карте
+         */
+        function updateMarkers(connections) {
+            // Очищаем старые маркеры
+            markers.forEach(m => m.remove());
+            markers = [];
+
+            // Подготавливаем данные для кластеризации
+            const points = connections.map(c => ({
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [c.lon, c.lat]
+                },
+                properties: {
+                    ip: c.ip,
+                    country: c.country,
+                    countryCode: c.countryCode,
+                    city: c.city,
+                    asn: c.asn
+                }
+            }));
+
+            cluster.load(points);
+
+            // Получаем кластеры для текущего зума
+            const zoom = map.getZoom();
+            const clusters = cluster.getClusters([-180, -90, 180, 90], Math.ceil(zoom));
+
+            clusters.forEach(feature => {
+                const coords = feature.geometry.coordinates;
+                const props = feature.properties;
+
+                if (props.cluster) {
+                    // Это кластер
+                    const size = props.point_count;
+                    const color = '#4ade80';
+                    
+                    const el = document.createElement('div');
+                    el.className = 'marker marker-cluster';
+                    el.textContent = size;
+                    el.style.width = (30 + size / 2) + 'px';
+                    el.style.height = (30 + size / 2) + 'px';
+                    el.style.lineHeight = (30 + size / 2) + 'px';
+                    el.style.background = `rgba(74, 222, 128, ${0.6 + (size / 100)})`;
+                    
+                    const marker = new maplibregl.Marker({
+                        element: el,
+                        anchor: 'center'
+                    })
+                        .setLngLat(coords)
+                        .addTo(map);
+                    
+                    markers.push(marker);
+                } else {
+                    // Это отдельная точка
+                    const color = getCountryColor(props.countryCode);
+                    
+                    const el = document.createElement('div');
+                    el.className = 'marker';
+                    el.style.background = color;
+                    
+                    const popup = new maplibregl.Popup({ offset: 25 })
+                        .setHTML(`
+                            <div class="popup">
+                                <div class="popup-title">${props.country} ${COUNTRY_FLAGS[props.countryCode] || ''}</div>
+                                <div class="popup-row">
+                                    <span>IP:</span>
+                                    <span>${props.ip}</span>
+                                </div>
+                                <div class="popup-row">
+                                    <span>City:</span>
+                                    <span>${props.city || 'Unknown'}</span>
+                                </div>
+                                <div class="popup-row">
+                                    <span>ASN:</span>
+                                    <span>${props.asn || 'N/A'}</span>
+                                </div>
+                            </div>
+                        `);
+                    
+                    const marker = new maplibregl.Marker({
+                        element: el,
+                        anchor: 'center'
+                    })
+                        .setLngLat(coords)
+                        .setPopup(popup)
+                        .addTo(map);
+                    
+                    el.addEventListener('click', () => {
+                        marker.togglePopup();
+                    });
+                    
+                    markers.push(marker);
+                }
+            });
+        }
+
+        /**
+         * Обновить статистику
+         */
+        function updateStats(data) {
+            const onlineCount = data.online;
+            document.getElementById('online-count').textContent = onlineCount;
+            
+            // Топ странам
+            const countries = Object.entries(data.countries)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+
+            const countriesList = document.getElementById('countries-list');
+            if (countries.length === 0) {
+                countriesList.innerHTML = '<div class="loading">No connections</div>';
+                return;
+            }
+
+            countriesList.innerHTML = countries.map(([code, count]) => {
+                const countryName = new Intl.DisplayNames('en', { type: 'region' }).of(code);
+                return `
+                    <div class="country-item">
+                        <span class="country-name">${COUNTRY_FLAGS[code] || '🌍'} ${countryName}</span>
+                        <span class="country-count">${count}</span>
+                    </div>
+                `;
+            }).join('');
+
+            // Время обновления
+            const time = new Date(data.timestamp).toLocaleTimeString();
+            document.getElementById('update-time').textContent = time;
+
+            // Дополнительная статистика
+            const ipv4 = data.connections.filter(c => !c.ip.includes(':')).length;
+            const ipv6 = data.connections.filter(c => c.ip.includes(':')).length;
+            
+            document.getElementById('stats-info').innerHTML = `
+                <div style="margin-bottom: 8px;">
+                    IPv4: <span style="color: #4ade80; font-weight: bold;">${ipv4}</span><br>
+                    IPv6: <span style="color: #4ade80; font-weight: bold;">${ipv6}</span>
+                </div>
+                <div style="font-size: 11px; color: #666;">
+                    Updates every 10s
+                </div>
+            `;
+        }
+
+        /**
+         * Загрузить данные
+         */
+        async function fetchConnections() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                
+                currentConnections = data.connections;
+                updateMarkers(currentConnections);
+                updateStats(data);
+            } catch (error) {
+                console.error('❌ Failed to fetch connections:', error);
+                document.getElementById('countries-list').innerHTML = 
+                    `<div class="error">Error loading data</div>`;
+            }
+        }
+
+        /**
+         * Инициализация
+         */
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            fetchConnections();
+            setInterval(fetchConnections, UPDATE_INTERVAL);
+        });
+
+        // Обновляем маркеры при изменении зума
+        if (map) {
+            map.on('zoom', () => {
+                updateMarkers(currentConnections);
+            });
+        }
+    </script>
+</body>
+</html>

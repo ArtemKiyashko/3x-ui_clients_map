@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  map-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: 3x-ui-map-service
+    ports:
+      - "3000:3000"
+    environment:
+      - X3UI_URL=${X3UI_URL:-http://host.docker.internal:8080}
+      - X3UI_PANEL_PATH=${X3UI_PANEL_PATH:-/panel}
+      - X3UI_API_KEY=${X3UI_API_KEY:-}
+      - PORT=3000
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - default
+    # Если 3x-ui находится в отдельном контейнере, раскомментируйте:
+    # depends_on:
+    #   - x3ui
+    # networks:
+    #   - 3x-ui-network
+    #   - default
+
+# Раскомментируйте если 3x-ui в Docker:
+# networks:
+#   3x-ui-network:
+#     external: true
