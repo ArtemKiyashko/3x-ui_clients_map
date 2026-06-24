@@ -93,6 +93,10 @@
             background: transparent !important;
         }
 
+        .maplibregl-ctrl-top-right .maplibregl-ctrl {
+            margin: 6px 6px 0 0;
+        }
+
         .popup-title {
             font-weight: 700;
             margin-bottom: 10px;
@@ -162,22 +166,62 @@
         let currentConnections = [];
         let openPopupKeys = new Set();
         let isRerendering = false;
+        let hasUserInteractedWithMap = false;
+        let hasAppliedDataAutofit = false;
 
-        function applyInitialRussiaViewport() {
+        function applyFallbackViewport() {
             if (!map) return;
 
-            // Keep all of Russia visible even in compact iframe layouts.
-            map.fitBounds(
-                [
-                    [19, 41],
-                    [180, 82]
-                ],
-                {
-                    padding: { top: 24, bottom: 24, left: 24, right: 24 },
-                    maxZoom: 2.7,
-                    duration: 0
-                }
+            map.easeTo({
+                center: [95, 61],
+                zoom: 2.4,
+                duration: 0
+            });
+        }
+
+        function fitToConnections(connections) {
+            if (!map || !Array.isArray(connections) || !connections.length) return;
+
+            const valid = connections.filter(
+                (c) => Number.isFinite(c?.lat) && Number.isFinite(c?.lon)
             );
+            if (!valid.length) return;
+
+            if (valid.length === 1) {
+                map.easeTo({
+                    center: [valid[0].lon, valid[0].lat],
+                    zoom: 5.2,
+                    duration: 0
+                });
+                hasAppliedDataAutofit = true;
+                return;
+            }
+
+            const bounds = new maplibregl.LngLatBounds(
+                [valid[0].lon, valid[0].lat],
+                [valid[0].lon, valid[0].lat]
+            );
+
+            for (let i = 1; i < valid.length; i++) {
+                bounds.extend([valid[i].lon, valid[i].lat]);
+            }
+
+            const container = map.getContainer();
+            const minSide = Math.max(240, Math.min(container.clientWidth || 0, container.clientHeight || 0));
+            const pad = Math.max(12, Math.round(minSide * 0.07));
+
+            map.fitBounds(bounds, {
+                padding: { top: pad, bottom: pad, left: pad, right: pad },
+                maxZoom: 5.8,
+                duration: 0
+            });
+            hasAppliedDataAutofit = true;
+        }
+
+        function markUserInteraction(event) {
+            if (event && event.originalEvent) {
+                hasUserInteractedWithMap = true;
+            }
         }
 
         /**
@@ -199,8 +243,13 @@
                 'top-right'
             );
 
+            map.on('dragstart', markUserInteraction);
+            map.on('zoomstart', markUserInteraction);
+            map.on('rotatestart', markUserInteraction);
+            map.on('pitchstart', markUserInteraction);
+
             map.on('load', () => {
-                applyInitialRussiaViewport();
+                map.resize();
                 fetchConnections();
                 setInterval(fetchConnections, UPDATE_INTERVAL);
             });
@@ -433,7 +482,13 @@
                 const response = await fetch(API_URL);
                 const data = await response.json();
                 
-                currentConnections = data.connections;
+                currentConnections = Array.isArray(data.connections) ? data.connections : [];
+                if (!hasUserInteractedWithMap && currentConnections.length) {
+                    fitToConnections(currentConnections);
+                }
+                if (!currentConnections.length && !hasAppliedDataAutofit) {
+                    applyFallbackViewport();
+                }
                 updateMarkers(currentConnections);
             } catch (error) {
                 console.error('❌ Failed to fetch connections:', error);
