@@ -239,6 +239,11 @@
                 'top-right'
             );
 
+            map.addControl(
+                new maplibregl.FullscreenControl(),
+                'top-right'
+            );
+
             map.on('dragstart', markUserInteraction);
             map.on('zoomstart', markUserInteraction);
             map.on('rotatestart', markUserInteraction);
