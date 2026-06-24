@@ -1,6 +1,6 @@
 # 3x-ui Live Connections Map
 
-Интерактивная страница с картой подключений 3x-ui. Проект рассчитан на один сценарий запуска: Docker Compose.
+Интерактивная страница с картой подключений 3x-ui. Проект рассчитан на один сценарий запуска: Docker Compose. Клонировать репозиторий не нужно — достаточно создать один файл.
 
 ## Что делает
 
@@ -11,40 +11,76 @@
 
 ## Запуск
 
-1. Создай `.env` из шаблона:
+1. Создай файл `docker-compose.yml` с содержимым:
+
+```yaml
+services:
+  map-service:
+    image: ghcr.io/artemkiyashko/3x-ui_clients_map:latest
+    container_name: 3x-ui-map-service
+    ports:
+      - "3117:3117"
+    environment:
+      - X3UI_URL=http://3xui.lan          # адрес панели 3x-ui
+      - X3UI_PANEL_PATH=/panel
+      - X3UI_API_KEY=your-api-key-here    # API ключ из настроек панели
+      - IP_API_BATCH_URL=http://ip-api.com/batch
+      - PORT=3117
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget --quiet --tries=1 --spider http://localhost:3117/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+```
+
+2. Подними сервис:
 
 ```bash
-cp .env.example .env
+docker compose up -d
 ```
 
-2. Заполни `.env`:
-
-```env
-X3UI_URL=http://host.docker.internal:8080
-X3UI_PANEL_PATH=/panel
-X3UI_API_KEY=your-api-key-here
-IP_API_BATCH_URL=http://ip-api.com/batch
-```
-
-3. Подними сервис:
-
-```bash
-docker compose up --build -d
-```
-
-4. Открой:
+3. Открой:
 
 ```text
 http://localhost:3117
+```
+
+### Если 3x-ui запущен в Docker
+
+Если панель находится в отдельном контейнере, нужно добавить оба сервиса в общую сеть. Пример:
+
+```yaml
+services:
+  map-service:
+    image: ghcr.io/artemkiyashko/3x-ui_clients_map:latest
+    container_name: 3x-ui-map-service
+    ports:
+      - "3117:3117"
+    environment:
+      - X3UI_URL=http://x3ui:2053         # имя контейнера 3x-ui и его внутренний порт
+      - X3UI_PANEL_PATH=/panel
+      - X3UI_API_KEY=your-api-key-here
+      - IP_API_BATCH_URL=http://ip-api.com/batch
+      - PORT=3117
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - 3x-ui-network
+
+networks:
+  3x-ui-network:
+    external: true                        # сеть должна уже существовать
 ```
 
 ## Что нужно на хосте
 
 - Docker
 - Docker Compose
-- `.env`
 
-Никакой локальной установки Node.js зависимостей не требуется.
+Клонировать репозиторий и устанавливать Node.js не нужно.
 
 ## API
 
