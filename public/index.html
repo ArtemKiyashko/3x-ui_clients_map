@@ -220,6 +220,17 @@
             }
         }
 
+        function isIOSLikeDevice() {
+            const ua = navigator.userAgent || '';
+            const platform = navigator.platform || '';
+            const maxTouchPoints = navigator.maxTouchPoints || 0;
+
+            if (/iPad|iPhone|iPod/.test(ua)) return true;
+
+            // iPadOS can present itself as MacIntel in browsers.
+            return platform === 'MacIntel' && maxTouchPoints > 1;
+        }
+
         /**
          * Инициализация MapLibre
          */
@@ -239,10 +250,12 @@
                 'top-right'
             );
 
-            map.addControl(
-                new maplibregl.FullscreenControl(),
-                'top-right'
-            );
+            if (!isIOSLikeDevice()) {
+                map.addControl(
+                    new maplibregl.FullscreenControl(),
+                    'top-right'
+                );
+            }
 
             map.on('dragstart', markUserInteraction);
             map.on('zoomstart', markUserInteraction);
