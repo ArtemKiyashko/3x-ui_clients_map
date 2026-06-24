@@ -163,6 +163,23 @@
         let openPopupKeys = new Set();
         let isRerendering = false;
 
+        function applyInitialRussiaViewport() {
+            if (!map) return;
+
+            // Keep all of Russia visible even in compact iframe layouts.
+            map.fitBounds(
+                [
+                    [19, 41],
+                    [180, 82]
+                ],
+                {
+                    padding: { top: 24, bottom: 24, left: 24, right: 24 },
+                    maxZoom: 2.7,
+                    duration: 0
+                }
+            );
+        }
+
         /**
          * Инициализация MapLibre
          */
@@ -178,6 +195,7 @@
             });
 
             map.on('load', () => {
+                applyInitialRussiaViewport();
                 fetchConnections();
                 setInterval(fetchConnections, UPDATE_INTERVAL);
             });
