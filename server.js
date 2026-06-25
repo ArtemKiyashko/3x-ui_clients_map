@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 
 const app = express();
@@ -12,6 +13,7 @@ const X3UI_BASE_URL = process.env.X3UI_URL || 'http://localhost:8080';
 const X3UI_PANEL_PATH = process.env.X3UI_PANEL_PATH || '/panel';
 const X3UI_API_KEY = process.env.X3UI_API_KEY || 'your-api-key';
 const IP_API_BATCH_URL = process.env.IP_API_BATCH_URL || 'http://ip-api.com/batch';
+const STADIA_API_KEY = process.env.STADIA_API_KEY || '';
 
 const GEO_CACHE = new Map();
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 часа
@@ -20,6 +22,54 @@ const IP_API_BATCH_SIZE = 100;
 
 // Middleware
 app.use(cors());
+
+const MAP_STYLE_PATH = path.join(__dirname, 'public', 'style.json');
+
+let styleTemplate = null;
+try {
+  styleTemplate = JSON.parse(fs.readFileSync(MAP_STYLE_PATH, 'utf8'));
+} catch (error) {
+  console.error('Failed to read map style template:', error.message);
+}
+
+function withStadiaApiKey(tileUrl) {
+  if (!STADIA_API_KEY) {
+    return tileUrl;
+  }
+
+  const [baseUrl, queryString = ''] = tileUrl.split('?');
+  const params = new URLSearchParams(queryString);
+  params.set('api_key', STADIA_API_KEY);
+
+  const serializedParams = params.toString();
+  return serializedParams ? `${baseUrl}?${serializedParams}` : baseUrl;
+}
+
+function buildRuntimeStyle() {
+  if (!styleTemplate) {
+    return null;
+  }
+
+  const style = JSON.parse(JSON.stringify(styleTemplate));
+  const stadiaSource = style.sources?.stadia;
+
+  if (stadiaSource?.type === 'raster' && Array.isArray(stadiaSource.tiles)) {
+    stadiaSource.tiles = stadiaSource.tiles.map(withStadiaApiKey);
+  }
+
+  return style;
+}
+
+app.get('/style.json', (req, res) => {
+  const style = buildRuntimeStyle();
+
+  if (!style) {
+    return res.status(500).json({ error: 'Map style is not available' });
+  }
+
+  return res.json(style);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 function getCachedGeo(ip) {

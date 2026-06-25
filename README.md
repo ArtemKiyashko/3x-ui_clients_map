@@ -24,6 +24,7 @@ services:
       - X3UI_URL=http://3xui.lan          # адрес панели 3x-ui
       - X3UI_PANEL_PATH=/panel
       - X3UI_API_KEY=your-api-key-here    # API ключ из настроек панели
+      - STADIA_API_KEY=your-stadia-api-key # опционально, для авторизованных Stadia tiles
       - IP_API_BATCH_URL=http://ip-api.com/batch
       - PORT=3117
       - NODE_ENV=production
@@ -63,6 +64,7 @@ services:
       - X3UI_URL=http://x3ui:2053         # имя контейнера 3x-ui и его внутренний порт
       - X3UI_PANEL_PATH=/panel
       - X3UI_API_KEY=your-api-key-here
+      - STADIA_API_KEY=your-stadia-api-key
       - IP_API_BATCH_URL=http://ip-api.com/batch
       - PORT=3117
       - NODE_ENV=production
@@ -119,5 +121,6 @@ networks:
 ## Замечания
 
 - карта использует внешние map tiles в браузере
+- `STADIA_API_KEY` опционален: если задан, сервер подставляет его в `style.json` для tile URL
 - геолокация идет через `ip-api.com/batch`, новые IP кэшируются в памяти
 - если у клиента несколько устройств или несколько IP, на карте будет несколько точек
